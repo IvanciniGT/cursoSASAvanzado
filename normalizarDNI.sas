@@ -414,10 +414,11 @@ en el cual los DNIs están escritos de forma diferente
 
 */
 
+
 %macro normalizarDNIs(tabla_a_modificar, campo_dni, nuevo_campo_normalizado, ceros=0, separador_miles=0, separador_letra_control=);
 	data &tabla_a_modificar;
 		set &tabla_a_modificar;
-		rs=dosubl(cats('%normalizarDNI(',&campo_dni,', ceros=',&ceros,', separador_letra_control=',&separador_letra_control,', separador_miles=',&separador_miles,')'));
+		rs=dosubl(cats('%normalizarDNI(',&campo_dni,', ceros=',&ceros,', separador_letra_control=1, separador_miles=',&separador_miles,')'));
 		if rs=0 then &nuevo_campo_normalizado=symget('dni_formateado');
 		DROP rs;
 	run;
