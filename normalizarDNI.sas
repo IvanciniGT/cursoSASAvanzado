@@ -96,7 +96,7 @@ la palabra %local.
 %LetraDNI(23000000);
 %put La letra asociada es: &letra_dni;
 */
-%macro normalizarDNI(dni);
+%macro normalizarDNI(dni, ceros=0, separador_miles=0, separador_letra_control=);
 	/********************************************
 	**   DEFINIR LAS VARIABLES DE LA FUNCION
 	********************************************/
@@ -108,6 +108,7 @@ la palabra %local.
 	%local cuantos_llevo;
 	%local viene_con_puntos;
 	%local numero_limpio;
+	%global dni_formateado;
 
 	/********************************************
 	**   PREPROCESAR LOS DATOS
@@ -244,6 +245,76 @@ la palabra %local.
 		%put ERROR: La letra de control del dni suministrado (&dni) no coincide.;
 		%return;
 	%end;
+	/*
+		Llegados a este punto:
+			- Tengo un DNI válido
+			- Tengo la letra del DNI: &letra
+			- Tengo el número limpio del DNI: &numero_limpio
+	*/
+	/*%let numero_limpio=%eval(&numero_limpio*1);*/
+	%let numero_limpio=%sysfunc(inputn(&numero_limpio,8.));
+
+	/**************************************************************
+	***       Formatear el DNI
+	**************************************************************/
+	/*
+		- Generar el número formateado
+			- Partimos del numero_limpio
+			- Que le ponga ceros o no
+			- Que le ponga puntos o no
+		23000 >>>> 00023000 >>>> 00.023.000
+		00000001
+		000000011
+		0000000111
+		00000001111
+		000000011111
+		000000011111111
+		- Concatenar numero_formateado y separador(el que me den) y letra
+	*/
+	%let dni_formateado=&numero_limpio;
+	%if &ceros~=0 %then %do;
+		%let dni_formateado=0000000&dni_formateado;
+		%let dni_formateado=%substr(&dni_formateado,%length(&numero_limpio),8);
+	%end;
+
+	%if &separador_miles~=0 %then %do;
+		%if %length(&dni_formateado)>3 %then %do;
+			/* 1.234 >>> 1.234 
+				Longitud: 4
+				1->1
+				2->3
+		       12.345
+				Longitud: 5
+				Desde la posición 1-> Tomo 2 caracteres:   12
+				Desde la posición 3-> Tomo 3 caracteres:  345
+			   1234.567
+				Longitud: 7
+				Desde la posición 1-> Tomo 4 caracteres:   1234
+				Desde la posición 5-> Tomo 3 caracteres:  567
+			   02300000
+				Longitud: 8
+				Desde la posición 1  > Toma 5 caracteres    2300
+				Desde la posicion 5  > Toma 3 caracteres
+			*/
+			%let dni_formateado=%substr(&dni_formateado,1,%length(&dni_formateado)-3).%substr(&dni_formateado,%length(&dni_formateado)-2,3);
+		%end;
+		%if %length(&dni_formateado)>7 %then %do;
+			/* 1234.567
+				Longitud: 8
+				Desde la posición 1-> Tomo 1 caracteres:   1
+				Desde la posición 2-> Tomo 7 caracteres:  234.567
+			   01234.567
+				Longitud: 9
+				Desde la posición 1-> Tomo 2 caracteres:   01
+				Desde la posición 2-> Tomo 7 caracteres:  234.567
+			*/
+			%let dni_formateado=%substr(&dni_formateado,1,%length(&dni_formateado)-7).%substr(&dni_formateado,%length(&dni_formateado)-6,7);
+		%end;
+	%end;
+	/* Concatenar el separador y la letra */
+	%let dni_formateado=&dni_formateado&separador_letra_control&letra;
+
+	/*%put El DNI Normalizado es: &dni_formateado;*/
 %mend normalizarDNI;
 
 /*
@@ -260,15 +331,17 @@ Como validar el DNI... Que REGLAS debe cumplir un DNI
 */
 /* La función trim(texto), devuelve el texto, sin los espacios en blanco
 que haya por delante y por detras*/
-%normalizarDNI(    23.000.000-t );    
+%normalizarDNI(    23.000.000-t );  
+%put DNI Normalizado= &dni_formateado; 
+/*
 %normalizarDNI(    17236482647323.000.000-t );
 %normalizarDNI(23000.000T);
 %normalizarDNI(%str(23000000=T));
 %normalizarDNI(%str(23000000 t));
-%normalizarDNI(23000000-T); /*2300000  T*/
-%normalizarDNI(.000.000t);/*2300000  T*/
-%normalizarDNI(2j00000t);   /*2300000  T*/
-%normalizarDNI(02300000t);  /*2300000  T*/
+%normalizarDNI(23000000-T); 
+%normalizarDNI(.000.000t);
+%normalizarDNI(2j00000t);   
+%normalizarDNI(02300000t);  
 %normalizarDNI(02.300.000T);
 %normalizarDNI(121.015F);
 %normalizarDNI(00.001.015F);
@@ -277,8 +350,11 @@ que haya por delante y por detras*/
 %normalizarDNI(02.300.000);
 %normalizarDNI(A02.300.000);
 %normalizarDNI(02.300000T);
-%normalizarDNI(02300.000T);
+%normalizarDNI(02.300.000T, ceros=1, separador_letra_control=., separador_miles=1);
+%normalizarDNI(02.300.000T, ceros=1, separador_letra_control=, separador_miles=0);
+%normalizarDNI(02.300.000T, ceros=0, separador_letra_control=%str(-), separador_miles=0);
 %normalizarDNI(Croasan);
+*/
 /*
 1º Validar que el DNI sea correcto
 	----> Si es correcto, haber extraido:
@@ -294,6 +370,13 @@ DataSet que tiene 4 millones de DNIs
 Cruzar ese dataset con otro datase que ha mandado un proveedor
 en el cual los DNIs están escritos de forma diferente
 	00.023.000-t   >>>>>  00023000T
+		numero_limpio: 23000 >>> 00023000
+	00.023.000     >>>>>       23000
+	00.023.000     >>>>>    00023000
+	23.000     	   >>>>>       23000
+	23.000         >>>>>    00023000
+	023.000        >>>>>    00023000
+	023.000        >>>>>       23000 <<< ERROR
 */
 
 
@@ -330,5 +413,3 @@ en el cual los DNIs están escritos de forma diferente
 	numro_limpio=1 + numerp_limpio	= 123
 
 */
-
-	
