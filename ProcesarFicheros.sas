@@ -137,7 +137,7 @@ DATA nuevos_generos;
 		Chavalote                     1                     0
 		*/
 	;
-	IF estaEnAntigua=0 THEN; OUTPUT;
+	IF estaEnAntigua=0 THEN OUTPUT;
 	BY genero;
 RUN;
 
@@ -154,13 +154,13 @@ SET CODIGOS_GENERO NUEVOS_GENEROS;
 RUN;
 
 PROC SORT data=codigos_genero; by genero;
-PROC SORT data=sexos_actuales; by sexo;
+PROC SORT data=clientes; by sexo;
 DATA clientes_preprocesados;
 	MERGE 
 		clientes (rename=(sexo=genero) in=actual)
 		codigos_genero 
 	;
-	IF actual=1 THEN; OUTPUT;
+	IF actual=1 THEN OUTPUT;
 	BY genero;
 	DROP genero;
 	FORMAT id GENEROS.;
