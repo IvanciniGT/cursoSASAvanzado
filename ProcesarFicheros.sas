@@ -102,15 +102,23 @@ Chavalote
 */
 
 /* Voy a crearme una tabla inicial */
-%if ~%sysfunc(exist('CODIGOS_GENERO')) %then %do;
+%macro generarCodigos(); 
+%put Voy a ver si hace falta generar la tabla inicial de generos;
+%if ~%sysfunc(exist(CODIGOS_GENERO)) %then %do;
+%put Generando tabla inicial;
 DATA CODIGOS_GENERO;
-INPUT id genero $;
-CARDS;
-1 Mujer
-2 Hombre
-;
+LENGTH genero $ 10;
+id=1;
+genero='Mujer';
+output;
+id=2;
+genero='Hombre';
+output;
 RUN;
 %end;
+%mend generarCodigos;
+%generarCodigos();
+
 
 /* Quiero sacar los datos de la tabla SEXOS_ACTUALES que no están en CODIGOS_GENERO */
 PROC SORT data=codigos_genero; by genero;
@@ -129,11 +137,31 @@ DATA nuevos_generos;
 		Chavalote                     1                     0
 		*/
 	;
-	IF estaEnAntigua=0 THEN OUTPUT;
+	IF estaEnAntigua=0 THEN; OUTPUT;
 	BY genero;
 RUN;
 
+/*
+DATA _null_; 
+	SET nuevos_generos;
+	FILE '/home/cursoloyal10/SAS_Base_I/Ficheros/PendientesCodificar.txt' termstr=crlf;
+	put @1 id @2 genero;
+RUN;
+*/
 
+DATA  CODIGOS_GENERO;
+SET CODIGOS_GENERO NUEVOS_GENEROS;
+RUN;
 
-
-
+PROC SORT data=codigos_genero; by genero;
+PROC SORT data=sexos_actuales; by sexo;
+DATA clientes_preprocesados;
+	MERGE 
+		clientes (rename=(sexo=genero) in=actual)
+		codigos_genero 
+	;
+	IF actual=1 THEN; OUTPUT;
+	BY genero;
+	DROP genero;
+	FORMAT id GENEROS.;
+RUN;
